@@ -3,7 +3,10 @@
     "allow": [
       "WebSearch",
       "Bash(curl:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebFetch(domain:artplayer.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.artplayer.org)"
     ],
     "deny": [],
     "ask": []

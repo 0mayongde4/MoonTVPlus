@@ -594,6 +594,24 @@ function PlayPageClient() {
   const cleanupPlayer = () => {
     if (artPlayerRef.current) {
       try {
+        // 在销毁前从弹幕插件读取最新配置并保存
+        if (danmakuPluginRef.current?.option && artPlayerRef.current.storage) {
+          const currentSettings = {
+            ...danmakuSettingsRef.current,
+            opacity: danmakuPluginRef.current.option.opacity || danmakuSettingsRef.current.opacity,
+            fontSize: danmakuPluginRef.current.option.fontSize || danmakuSettingsRef.current.fontSize,
+            speed: danmakuPluginRef.current.option.speed || danmakuSettingsRef.current.speed,
+            marginTop: (danmakuPluginRef.current.option.margin && danmakuPluginRef.current.option.margin[0]) ?? danmakuSettingsRef.current.marginTop,
+            marginBottom: (danmakuPluginRef.current.option.margin && danmakuPluginRef.current.option.margin[1]) ?? danmakuSettingsRef.current.marginBottom,
+          };
+
+          // 保存到 localStorage 和 art.storage
+          saveDanmakuSettings(currentSettings);
+          artPlayerRef.current.storage.set('danmaku_settings', currentSettings);
+
+          console.log('播放器销毁前保存弹幕设置:', currentSettings);
+        }
+
         // 销毁 HLS 实例
         if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
           artPlayerRef.current.video.hls.destroy();
@@ -2046,6 +2064,8 @@ function PlayPageClient() {
             antiOverlap: true,
             synchronousPlayback: danmakuSettingsRef.current.synchronousPlayback,
             emitter: false,
+            // 主题
+            theme: 'dark',
             filter: (danmu: any) => {
               // 应用过滤规则
               if (danmakuSettingsRef.current.filterRules.length > 0) {
@@ -2092,115 +2112,6 @@ function PlayPageClient() {
                 // ignore
               }
               return newVal ? '当前开启' : '当前关闭';
-            },
-          },
-          // 弹幕开关
-          {
-            name: '弹幕开关',
-            html: '弹幕开关',
-            icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" fill="#ffffff"/><text x="12" y="13" font-size="8" text-anchor="middle" fill="#ffffff">弹</text></svg>',
-            switch: danmakuSettingsRef.current.enabled,
-            onSwitch: function (item: any) {
-              const newSettings = {
-                ...danmakuSettingsRef.current,
-                enabled: !item.switch,
-              };
-              setDanmakuSettings(newSettings);
-              saveDanmakuSettings(newSettings);
-
-              // 切换弹幕显示/隐藏
-              if (danmakuPluginRef.current) {
-                if (newSettings.enabled) {
-                  danmakuPluginRef.current.show();
-                } else {
-                  danmakuPluginRef.current.hide();
-                }
-              }
-
-              return !item.switch;
-            },
-          },
-          // 弹幕不透明度
-          {
-            name: '弹幕不透明度',
-            html: '弹幕不透明度',
-            selector: [
-              { html: '10%', value: '0.1' },
-              { html: '25%', value: '0.25' },
-              { html: '50%', value: '0.5' },
-              { html: '75%', value: '0.75', default: true },
-              { html: '100%', value: '1.0' },
-            ],
-            onSelect: function (item: any) {
-              const opacity = parseFloat(item.value);
-              const newSettings = {
-                ...danmakuSettingsRef.current,
-                opacity,
-              };
-              setDanmakuSettings(newSettings);
-              saveDanmakuSettings(newSettings);
-
-              // 更新弹幕插件配置
-              if (danmakuPluginRef.current) {
-                danmakuPluginRef.current.config({ opacity });
-              }
-
-              return item.html;
-            },
-          },
-          // 弹幕字体大小
-          {
-            name: '弹幕字体大小',
-            html: '弹幕字体大小',
-            selector: [
-              { html: '小', value: '20' },
-              { html: '中', value: '25', default: true },
-              { html: '大', value: '30' },
-              { html: '特大', value: '35' },
-            ],
-            onSelect: function (item: any) {
-              const fontSize = parseInt(item.value);
-              const newSettings = {
-                ...danmakuSettingsRef.current,
-                fontSize,
-              };
-              setDanmakuSettings(newSettings);
-              saveDanmakuSettings(newSettings);
-
-              // 更新弹幕插件配置
-              if (danmakuPluginRef.current) {
-                danmakuPluginRef.current.config({ fontSize });
-              }
-
-              return item.html;
-            },
-          },
-          // 弹幕速度
-          {
-            name: '弹幕速度',
-            html: '弹幕速度',
-            selector: [
-              { html: '很慢', value: '3' },
-              { html: '慢', value: '5', default: true },
-              { html: '正常', value: '7' },
-              { html: '快', value: '10' },
-              { html: '很快', value: '15' },
-            ],
-            onSelect: function (item: any) {
-              const speed = parseInt(item.value);
-              const newSettings = {
-                ...danmakuSettingsRef.current,
-                speed,
-              };
-              setDanmakuSettings(newSettings);
-              saveDanmakuSettings(newSettings);
-
-              // 更新弹幕插件配置
-              if (danmakuPluginRef.current) {
-                danmakuPluginRef.current.config({ speed });
-              }
-
-              return item.html;
             },
           },
           ...(webGPUSupported ? [
@@ -2373,9 +2284,46 @@ function PlayPageClient() {
       artPlayerRef.current.on('ready', async () => {
         setError(null);
 
+        // 从 art.storage 读取弹幕设置并应用
+        if (artPlayerRef.current) {
+          const storedDanmakuSettings = artPlayerRef.current.storage.get('danmaku_settings');
+          if (storedDanmakuSettings) {
+            // 合并存储的设置到当前设置
+            const mergedSettings = {
+              ...danmakuSettingsRef.current,
+              ...storedDanmakuSettings,
+            };
+            setDanmakuSettings(mergedSettings);
+            saveDanmakuSettings(mergedSettings);
+          }
+        }
+
         // 保存弹幕插件引用
         if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
           danmakuPluginRef.current = artPlayerRef.current.plugins.artplayerPluginDanmuku;
+
+          // 监听弹幕配置变化事件
+          artPlayerRef.current.on('artplayerPluginDanmuku:config', () => {
+            if (danmakuPluginRef.current?.option) {
+              const newSettings = {
+                ...danmakuSettingsRef.current,
+                opacity: danmakuPluginRef.current.option.opacity || danmakuSettingsRef.current.opacity,
+                fontSize: danmakuPluginRef.current.option.fontSize || danmakuSettingsRef.current.fontSize,
+                speed: danmakuPluginRef.current.option.speed || danmakuSettingsRef.current.speed,
+                marginTop: (danmakuPluginRef.current.option.margin && danmakuPluginRef.current.option.margin[0]) ?? danmakuSettingsRef.current.marginTop,
+                marginBottom: (danmakuPluginRef.current.option.margin && danmakuPluginRef.current.option.margin[1]) ?? danmakuSettingsRef.current.marginBottom,
+              };
+
+              // 保存到 localStorage 和 art.storage
+              setDanmakuSettings(newSettings);
+              saveDanmakuSettings(newSettings);
+              if (artPlayerRef.current?.storage) {
+                artPlayerRef.current.storage.set('danmaku_settings', newSettings);
+              }
+
+              console.log('弹幕设置已更新并保存:', newSettings);
+            }
+          });
 
           // 根据设置显示或隐藏弹幕
           if (danmakuSettingsRef.current.enabled) {
