@@ -1,5 +1,5 @@
 const EPISODE_PROGRESS_PREFIX = 'moontv_episode_progress:';
-const EPISODE_PROGRESS_MAX_SHOWS = 200;
+const EPISODE_PROGRESS_MAX_SHOWS = 100;
 const EPISODE_PROGRESS_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 120;
 
 export interface LocalEpisodeProgressRecord {
