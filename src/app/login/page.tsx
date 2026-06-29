@@ -288,7 +288,10 @@ function LoginPageClient() {
       const createRes = await fetch('/api/telegram/login/create', { method: 'POST' });
       const createData = await createRes.json().catch(() => ({}));
       if (!createRes.ok) {
-        setError(createData.error || 'Telegram 登录未启用');
+        const configDetail = createData.config
+          ? `（enabled=${String(createData.config.enabled)}, loginEnabled=${String(createData.config.loginEnabled)}, hasBotToken=${String(createData.config.hasBotToken)}, hasBotUsername=${String(createData.config.hasBotUsername)}, botUsername=${createData.config.botUsername || '-'}）`
+          : `（HTTP ${createRes.status}）`;
+        setError(`${createData.error || 'Telegram 登录接口不可用'}${configDetail}`);
         return;
       }
 

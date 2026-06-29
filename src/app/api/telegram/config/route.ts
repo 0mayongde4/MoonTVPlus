@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 
-import { getTelegramConfig } from '@/lib/telegram';
+import { getTelegramConfig, getTelegramConfigProblems } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   const config = await getTelegramConfig();
+  const loginProblems = getTelegramConfigProblems(config, 'login');
+  const bindingProblems = getTelegramConfigProblems(config, 'binding');
   return NextResponse.json({
     enabled: config.enabled && Boolean(config.botToken),
-    botUsername: config.botUsername,
-    loginEnabled: config.loginEnabled,
-    bindingEnabled: config.bindingEnabled,
+    botUsername: config.botUsername.replace(/^@/, ''),
+    loginEnabled: loginProblems.length === 0,
+    bindingEnabled: bindingProblems.length === 0,
     notificationsEnabled: config.notificationsEnabled,
+    problems: Array.from(new Set([...loginProblems, ...bindingProblems])),
   });
 }

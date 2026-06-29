@@ -5,6 +5,7 @@ import {
   createTelegramBindSession,
   getTelegramBinding,
   getTelegramConfig,
+  getTelegramConfigProblems,
   getTelegramDeepLink,
 } from '@/lib/telegram';
 
@@ -18,9 +19,11 @@ export async function GET(request: NextRequest) {
 
   const config = await getTelegramConfig();
   const binding = await getTelegramBinding(authInfo.username);
+  const problems = getTelegramConfigProblems(config, 'binding');
   return NextResponse.json({
-    enabled: config.enabled && config.bindingEnabled && Boolean(config.botToken),
-    botUsername: config.botUsername,
+    enabled: problems.length === 0,
+    problems,
+    botUsername: config.botUsername.replace(/^@/, ''),
     binding,
   });
 }
@@ -32,15 +35,26 @@ export async function POST(request: NextRequest) {
   }
 
   const config = await getTelegramConfig();
-  if (!config.enabled || !config.bindingEnabled || !config.botToken) {
-    return NextResponse.json({ error: 'Telegram Bot 未启用' }, { status: 400 });
+  const problems = getTelegramConfigProblems(config, 'binding');
+  if (problems.length > 0) {
+    return NextResponse.json({
+      error: `Telegram 绑定不可用：${problems.join('、')}`,
+      config: {
+        enabled: config.enabled,
+        bindingEnabled: config.bindingEnabled,
+        hasBotToken: Boolean(config.botToken),
+        hasBotUsername: Boolean(config.botUsername),
+        botUsername: config.botUsername || '',
+      },
+    }, { status: 400 });
   }
 
   const session = await createTelegramBindSession(authInfo.username);
+  const botUsername = config.botUsername.replace(/^@/, '');
   return NextResponse.json({
     code: session.code,
     expiresAt: session.expiresAt,
-    botUsername: config.botUsername,
-    deepLink: config.botUsername ? getTelegramDeepLink(config.botUsername, `bind_${session.code}`) : '',
+    botUsername,
+    deepLink: getTelegramDeepLink(botUsername, `bind_${session.code}`),
   });
 }

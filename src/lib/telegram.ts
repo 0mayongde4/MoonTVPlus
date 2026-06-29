@@ -481,7 +481,21 @@ export async function dispatchTelegramNotification(
 }
 
 export function getTelegramDeepLink(botUsername: string, payload: string) {
-  return `https://t.me/${botUsername}?start=${encodeURIComponent(payload)}`;
+  return `https://t.me/${botUsername.replace(/^@/, '')}?start=${encodeURIComponent(payload)}`;
+}
+
+export function getTelegramConfigProblems(
+  config: TelegramConfig,
+  feature?: 'login' | 'binding' | 'notifications'
+): string[] {
+  const problems: string[] = [];
+  if (!config.enabled) problems.push('总开关未开启');
+  if (!config.botToken) problems.push('Bot Token 为空');
+  if ((feature === 'login' || feature === 'binding') && !config.botUsername) problems.push('Bot 用户名为空');
+  if (feature === 'login' && !config.loginEnabled) problems.push('Telegram 登录开关未开启');
+  if (feature === 'binding' && !config.bindingEnabled) problems.push('Telegram 绑定开关未开启');
+  if (feature === 'notifications' && !config.notificationsEnabled) problems.push('Telegram 通知开关未开启');
+  return problems;
 }
 
 function parseMessageText(update: any) {
@@ -500,6 +514,16 @@ function parseMessageText(update: any) {
 export async function handleTelegramWebhookUpdate(update: any): Promise<void> {
   const parsed = parseMessageText(update);
   if (parsed) {
+    if (/^\/start$/i.test(parsed.text)) {
+      await sendTelegramMessage(parsed.chatId, 'MoonTVPlus Telegram Bot 已连接。\n\n可用命令：\n/bind 绑定码 - 绑定账号\n/status - 查看状态\n/unbind - 解除绑定');
+      return;
+    }
+
+    if (/^\/bind$/i.test(parsed.text)) {
+      await sendTelegramMessage(parsed.chatId, '请先在站内「账号/通知设置」里生成 6 位 Telegram 绑定码，然后发送：\n/bind 123456');
+      return;
+    }
+
     const startLoginMatch = parsed.text.match(/^\/start\s+login_(.+)$/i);
     if (startLoginMatch) {
       try {
